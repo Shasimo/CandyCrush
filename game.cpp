@@ -32,7 +32,7 @@ class Game{
 
 unique_ptr<Game> Game::singleton;
 
-int nain()
+int main()
 {
     Game::create().drawBoard("Bonjour");
     return 0;

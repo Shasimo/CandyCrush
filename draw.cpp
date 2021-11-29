@@ -2,6 +2,9 @@
 #include <FL/fl_draw.H>
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Box.H>
+#include <FL/Fl_Image.H>
+#include <FL/Fl_PNG_Image.H>
+#include <FL/Fl_Shared_Image.H>
 #include <string>
 #include <math.h>
 #include <time.h>
@@ -10,6 +13,7 @@
 #include <iostream>
 #include <random>
 #include <array>
+#include <memory>
 
 #if __cplusplus >= 202002L
 #include <numbers>
@@ -20,8 +24,8 @@ const double pi=3.141592653589793238462643383279502884L;
  
 using namespace std;
  
-const int windowWidth = 500;
-const int windowHeight = 500;
+const int windowWidth = 550;
+const int windowHeight = 2000;
 const double refreshPerSecond = 60;
  
  
@@ -162,6 +166,50 @@ bool Rectangle::contains(Point p) {
          p.y<center.y+h/2;
 }
 
+/*----------------------
+-----------------------*/
+
+class TextRectangle : public Rectangle, public Text
+{
+  public:
+  TextRectangle(Point center, int w, int h, string s) : 
+  Rectangle{center, w, h}, Text{s, center} {}
+  void draw();
+
+};
+
+void TextRectangle::draw() {
+  Rectangle::draw();
+  Text::draw();
+}
+
+/*----------------------
+----------------------*/
+
+
+class Candy {
+  Point center;
+  char* candySprite;
+  public:
+  Candy(Point center, char* candySprite);
+  void draw();
+
+};
+
+Candy::Candy(Point center, char* candySprite) : 
+center(center), candySprite(candySprite) {};
+
+void Candy::draw() {
+  /*fl_draw_box(FL_BORDER_FRAME, center.x-50/2, center.y-50/2, 40, 40, FL_BLUE);*/
+  Fl_PNG_Image png("Sprites/tile000.png");
+  Fl_Box box(center.x-50/2, center.y-50/2, 40, 40);
+  box.image(png);
+  box.show();
+};
+
+
+
+
 /*--------------------------------------------------
  
 Circle class.
@@ -251,14 +299,17 @@ vraiables and call the methods of Cell
 class Cell {
   Rectangle r;
   Circle c;
+  Candy o;
   vector<Cell *> neighbors;
 
   Fl_Color color_candy;
   bool selected;
+  Point* center_ptr;
   Point center;
+
  public:
   // Constructor
-  Cell(Point center, int w, int h, int r, Fl_Color color_candy);
+  Cell(Point center, int w, int h, int r, Fl_Color color_candy, char* candie);
   Cell &operator=(const Cell &other);
  
   void draw();
@@ -274,24 +325,28 @@ class Cell {
  
 };
  
-Cell::Cell(Point center, int w, int h, int r, Fl_Color color_candy):
+Cell::Cell(Point center, int w, int h, int r, Fl_Color color_candy, char* candie):
+  o(center, candie),
   r(center, w, h, FL_BLACK, FL_WHITE), 
   c(center, r, FL_BLACK, FL_WHITE), 
   selected(false),
   color_candy(color_candy),
-  center(center) {}
+  center_ptr(&center),
+  center({center_ptr->x, center_ptr->y})
+  {}
 
 Cell &Cell::operator =(const Cell &other)
 {
-  center=other.center;
+  
+  center_ptr=other.center_ptr;
   color_candy=other.color_candy;
   return *this;
 }
  
 void Cell::draw() {
-  c.setFillColor(color_candy);
+  r.setFillColor(color_candy);
   r.draw();
-  c.draw();
+  o.draw();
 }
  
 void Cell::mouseMove(Point mouseLoc) {
@@ -354,8 +409,9 @@ elsewhere it will probably crash.
  
 class Canvas {
   vector< vector<Cell> > cells;
+  vector<char*> candySprites;
  public:
-  Canvas();
+  Canvas(vector <char*> candySprites);
   void draw();
   void mouseMove(Point mouseLoc);
   void mouseClick(Point mouseLoc);
@@ -366,7 +422,7 @@ class Canvas {
   void SwitchTwoCells(Cell c, Cell* n);
 };
  
-Canvas::Canvas() {
+Canvas::Canvas(vector <char*> candySprites) : candySprites(candySprites) {
 
   cells.clear();
   Fl_Color color_candy;
@@ -375,26 +431,31 @@ Canvas::Canvas() {
     cells.push_back({});
     for (int y = 0; y<9; y++)
     {
+      char* candie;
       random_number=rand()%4;
       switch(random_number)
       {
         case 0:
         color_candy=FL_RED;
+        candie = candySprites[0];
         break;
 
         case 1:
         color_candy=FL_BLUE;
+        candie = candySprites[1];
 
         break;
         case 2:
         color_candy=FL_YELLOW;
+        candie = candySprites[2];
         break;
 
         case 3:
         color_candy=FL_GREEN;
+        candie = candySprites[3];
         break;
       }
-      cells[x].push_back({{50*x+50, 50*y+50}, 45, 45, 15, color_candy});
+      cells[x].push_back({{45*x+50, 45*y+120}, 40, 40, 15, color_candy, candie});
     }
   }
 
@@ -412,7 +473,7 @@ Canvas::Canvas() {
     {
       int neighborx = x+shift.x;
       int neighbory = y+shift.y;
-      if (neighborx >= 0 && // Check if the indicies are in range
+      if (neighborx >= 0 &&
           neighbory >= 0 &&
           neighborx < cells.size() &
           neighbory < cells[neighborx].size())
@@ -425,6 +486,7 @@ Canvas::Canvas() {
 
 void Canvas::SwitchTwoCells(Cell c, Cell* n)
 {
+
   vector <Cell *> future_neighbors_n;
   vector <Cell *> future_neighbors_c;
   vector <Cell *> v1 = c.getNeighbors();
@@ -446,15 +508,11 @@ void Canvas::SwitchTwoCells(Cell c, Cell* n)
     }
   future_neighbors_c.push_back(n);
 
-  c.setNeighbors(future_neighbors_c);
-  n->setNeighbors(future_neighbors_n);
-
-
-
-  swap(
-  cells[(c.getCenter().x - 50)/50][(c.getCenter().y - 50)/50], 
-  cells[(n->getCenter().x - 50)/50][(n->getCenter().y - 50)/50]
+  swap( 
+  cells[(c.getCenter().x-50)/45][(c.getCenter().y - 120)/45],
+  cells[(n->getCenter().x-50)/45][(n->getCenter().y - 120)/45]
   );
+
 
 }
 
@@ -531,13 +589,23 @@ Do not edit!!!!
  
 class MainWindow : public Fl_Window {
   Canvas canvas;
+  vector <char*> candySprites;
  public:
-  MainWindow() : Fl_Window(500, 500, windowWidth, windowHeight, "CandyCrush") {
+  MainWindow(vector <char*> candySprites) : Fl_Window(500, 500, windowWidth, windowHeight, "CandyCrush"),
+  candySprites(candySprites),
+  canvas(candySprites)
+  {
     Fl::add_timeout(1.0/refreshPerSecond, Timer_CB, this);
     resizable(this);
   }
   void draw() override {
     Fl_Window::draw();
+    TextRectangle display_score({90,60}, 120, 70, "Score:");
+    TextRectangle display_objective({230, 60}, 120, 70, "Objective:");
+    TextRectangle display_hits({370, 60}, 120, 70, "Hits remaning:");
+    display_score.draw();
+    display_objective.draw();
+    display_hits.draw();
     canvas.draw();
   }
   int handle(int event) override {
@@ -560,20 +628,3 @@ class MainWindow : public Fl_Window {
     Fl::repeat_timeout(1.0/refreshPerSecond, Timer_CB, userdata);
   }
 };
- 
- 
-/*--------------------------------------------------
- 
-main
- 
-Do not edit!!!!
- 
---------------------------------------------------*/
- 
- 
-int start_to_draw(int argc, char *argv[]) {
-  srand(time(0));
-  MainWindow window;
-  window.show(argc, argv);
-  return Fl::run();
-}

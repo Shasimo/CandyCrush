@@ -14,7 +14,8 @@
 #include <random>
 #include <array>
 #include <memory>
-
+#include <unistd.h>
+ 
 #if __cplusplus >= 202002L
 #include <numbers>
 using std::numbers::pi;
@@ -32,6 +33,28 @@ const double refreshPerSecond = 60;
 struct Point {
   int x, y;
 };
+ 
+class Game {
+  int numberLevel=0;
+  public:
+  Game();
+ 
+  void setNumberLevel(int numberLevel);
+  int getNumberLevel();
+ 
+};
+ 
+Game::Game() {
+}
+ 
+void Game::setNumberLevel(int n){
+  numberLevel=n;
+}
+ 
+int Game::getNumberLevel() {
+  return numberLevel;
+}
+ 
  
 /*--------------------------------------------------
  
@@ -103,8 +126,8 @@ It should have all the features you need and you
 should not need to edit it.
  
 --------------------------------------------------*/
-
-
+ 
+ 
  
 class Rectangle {
   Point center;
@@ -165,51 +188,27 @@ bool Rectangle::contains(Point p) {
          p.y>=center.y-h/2 &&
          p.y<center.y+h/2;
 }
-
+ 
 /*----------------------
 -----------------------*/
-
+ 
 class TextRectangle : public Rectangle, public Text
 {
   public:
   TextRectangle(Point center, int w, int h, string s) : 
   Rectangle{center, w, h}, Text{s, center} {}
   void draw();
-
+ 
 };
-
+ 
 void TextRectangle::draw() {
   Rectangle::draw();
   Text::draw();
 }
-
-/*----------------------
-----------------------*/
-
-
-class Candy {
-  Point center;
-  char* candySprite;
-  public:
-  Candy(Point center, char* candySprite);
-  void draw();
-
-};
-
-Candy::Candy(Point center, char* candySprite) : 
-center(center), candySprite(candySprite) {};
-
-void Candy::draw() {
-  /*fl_draw_box(FL_BORDER_FRAME, center.x-50/2, center.y-50/2, 40, 40, FL_BLUE);*/
-  Fl_PNG_Image png("Sprites/tile000.png");
-  Fl_Box box(center.x-50/2, center.y-50/2, 40, 40);
-  box.image(png);
-  box.show();
-};
-
-
-
-
+ 
+ 
+ 
+ 
 /*--------------------------------------------------
  
 Circle class.
@@ -283,8 +282,36 @@ bool Circle::contains(Point p) {
           +(p.y-center.y)*(p.y-center.y)<=r*r);
 }
  
-
-
+/*----------------------
+----------------------*/
+ 
+ 
+class Candy : public Circle {
+  Point center;
+  Fl_Color color;
+ 
+  public:
+  Candy(Point center, int r, Fl_Color color);
+  void draw();
+  Fl_Color getColor();
+ 
+};
+ 
+Candy::Candy(Point center, int r, Fl_Color color) : 
+Circle(center, r, FL_BLACK, color), 
+center(center), color(color) {};
+ 
+void Candy::draw() {
+  Circle::draw();
+ 
+};
+ 
+Fl_Color Candy::getColor() {
+  return color;
+}
+ 
+ 
+ 
  
  
 /*--------------------------------------------------
@@ -298,24 +325,23 @@ vraiables and call the methods of Cell
  
 class Cell {
   Rectangle r;
-  Circle c;
-  Candy o;
+  Candy c;
   vector<Cell *> neighbors;
-
+ 
   Fl_Color color_candy;
   bool selected;
   Point* center_ptr;
   Point center;
-
+ 
  public:
   // Constructor
-  Cell(Point center, int w, int h, int r, Fl_Color color_candy, char* candie);
+  Cell(Point center, int w, int h, int r, Fl_Color color_candy);
   Cell &operator=(const Cell &other);
  
   void draw();
   void mouseMove(Point mouseLoc);
   void mouseClick(Point mouseLoc);
-
+ 
   void setNeighbors(vector <Cell *> newNeighbors) {neighbors = newNeighbors;}
   vector <Cell*> getNeighbors() {return neighbors;}
   Point getCenter();
@@ -325,28 +351,29 @@ class Cell {
  
 };
  
-Cell::Cell(Point center, int w, int h, int r, Fl_Color color_candy, char* candie):
-  o(center, candie),
+Cell::Cell(Point center, int w, int h, int r, Fl_Color color_candy): 
+  c(center, r, color_candy),
   r(center, w, h, FL_BLACK, FL_WHITE), 
-  c(center, r, FL_BLACK, FL_WHITE), 
   selected(false),
   color_candy(color_candy),
   center_ptr(&center),
   center({center_ptr->x, center_ptr->y})
   {}
-
+ 
 Cell &Cell::operator =(const Cell &other)
 {
   
   center_ptr=other.center_ptr;
   color_candy=other.color_candy;
+ 
+ 
   return *this;
 }
  
 void Cell::draw() {
-  r.setFillColor(color_candy);
   r.draw();
-  o.draw();
+  c.setFillColor(color_candy);
+  c.draw();
 }
  
 void Cell::mouseMove(Point mouseLoc) {
@@ -371,17 +398,17 @@ void Cell::mouseClick(Point mouseLoc) {
     selected=false;
   } 
 }
-
-
-
+ 
+ 
+ 
 bool Cell::getSelected() {
   return selected;
 }
-
+ 
 void Cell::setSelected(bool value) {
   selected=value;
 }
-
+ 
 Point Cell::getCenter() {
   return center;
 }
@@ -409,21 +436,20 @@ elsewhere it will probably crash.
  
 class Canvas {
   vector< vector<Cell> > cells;
-  vector<char*> candySprites;
  public:
-  Canvas(vector <char*> candySprites);
+  Canvas();
   void draw();
   void mouseMove(Point mouseLoc);
   void mouseClick(Point mouseLoc);
   void keyPressed(int keyCode);
-
+ 
   void checkIfNeighborsSelected();
   void clearSelected();
   void SwitchTwoCells(Cell c, Cell* n);
 };
  
-Canvas::Canvas(vector <char*> candySprites) : candySprites(candySprites) {
-
+Canvas::Canvas() {
+ 
   cells.clear();
   Fl_Color color_candy;
   int random_number;
@@ -437,32 +463,28 @@ Canvas::Canvas(vector <char*> candySprites) : candySprites(candySprites) {
       {
         case 0:
         color_candy=FL_RED;
-        candie = candySprites[0];
         break;
-
+ 
         case 1:
         color_candy=FL_BLUE;
-        candie = candySprites[1];
-
+ 
         break;
         case 2:
         color_candy=FL_YELLOW;
-        candie = candySprites[2];
         break;
-
+ 
         case 3:
         color_candy=FL_GREEN;
-        candie = candySprites[3];
         break;
       }
-      cells[x].push_back({{45*x+50, 45*y+120}, 40, 40, 15, color_candy, candie});
+      cells[x].push_back({{45*x+50, 45*y+120}, 40, 40, 15, color_candy});
     }
   }
-
+ 
   for (int x = 0; x<9; x++)
     for (int y = 0; y<9; y++) {
       vector<Cell *> neighbors;
-
+ 
   for (auto &shift: vector<Point>({
     {-1, 0},
     { 0, 1},
@@ -483,15 +505,15 @@ Canvas::Canvas(vector <char*> candySprites) : candySprites(candySprites) {
     }
  
 }
-
+ 
 void Canvas::SwitchTwoCells(Cell c, Cell* n)
 {
-
+ 
   vector <Cell *> future_neighbors_n;
   vector <Cell *> future_neighbors_c;
   vector <Cell *> v1 = c.getNeighbors();
   vector <Cell *> v2 = n->getNeighbors();
-
+ 
   for (int i = 0; i < v1.size(); i++) 
     if (!( (v1[i]->getCenter().x == n->getCenter().x) && 
     (v1[i]->getCenter().y == n->getCenter().y)) )
@@ -499,7 +521,7 @@ void Canvas::SwitchTwoCells(Cell c, Cell* n)
       future_neighbors_n.push_back(v1[i]);
     }
   future_neighbors_n.push_back(&c);
-
+ 
   for (int i = 0; i < v2.size(); i++) 
     if (!( (v2[i]->getCenter().x == c.getCenter().x) && 
     (v2[i]->getCenter().y == c.getCenter().y)) )
@@ -507,15 +529,15 @@ void Canvas::SwitchTwoCells(Cell c, Cell* n)
       future_neighbors_c.push_back(v2[i]);
     }
   future_neighbors_c.push_back(n);
-
+ 
   swap( 
   cells[(c.getCenter().x-50)/45][(c.getCenter().y - 120)/45],
   cells[(n->getCenter().x-50)/45][(n->getCenter().y - 120)/45]
   );
-
-
+ 
+ 
 }
-
+ 
 void Canvas::clearSelected() {
   for (auto &v: cells)
     for (auto &c: v)
@@ -524,7 +546,7 @@ void Canvas::clearSelected() {
        c.setSelected(false);
      }
 }
-
+ 
 void Canvas::checkIfNeighborsSelected() {
   int cout_selected=0;
   for (auto &v: cells)
@@ -541,7 +563,7 @@ void Canvas::checkIfNeighborsSelected() {
            neighbor->setSelected(false);
            SwitchTwoCells(c, neighbor);
          }
-
+ 
        }
       }
     }
@@ -589,25 +611,40 @@ Do not edit!!!!
  
 class MainWindow : public Fl_Window {
   Canvas canvas;
-  vector <char*> candySprites;
+  Game newGame;
  public:
-  MainWindow(vector <char*> candySprites) : Fl_Window(500, 500, windowWidth, windowHeight, "CandyCrush"),
-  candySprites(candySprites),
-  canvas(candySprites)
-  {
+  MainWindow(Game newGame) : Fl_Window(500, 500, windowWidth, windowHeight, "CandyCrush") {
     Fl::add_timeout(1.0/refreshPerSecond, Timer_CB, this);
     resizable(this);
   }
+ 
+  void drawWelcomeBoard();
+  void drawLevelOne();
+  void drawLevelTwo();
+  void drawLevelThree();
+  void drawLevelFour();
+ 
   void draw() override {
     Fl_Window::draw();
-    TextRectangle display_score({90,60}, 120, 70, "Score:");
-    TextRectangle display_objective({230, 60}, 120, 70, "Objective:");
-    TextRectangle display_hits({370, 60}, 120, 70, "Hits remaning:");
-    display_score.draw();
-    display_objective.draw();
-    display_hits.draw();
-    canvas.draw();
-  }
+    int level=newGame.getNumberLevel();
+    switch (level) {
+     case 0:
+      drawWelcomeBoard();
+      newGame.setNumberLevel(1);
+      break;
+     case 1:
+      sleep(1);
+      drawLevelOne();
+      break;
+     case 2:
+       break;
+     case 3:
+      break;
+     case 4:
+      break;
+     }
+  };
+ 
   int handle(int event) override {
     switch (event) {
       case FL_MOVE:
@@ -628,3 +665,23 @@ class MainWindow : public Fl_Window {
     Fl::repeat_timeout(1.0/refreshPerSecond, Timer_CB, userdata);
   }
 };
+ 
+void MainWindow::drawWelcomeBoard()
+{
+  Fl_Color pink=fl_color_average(FL_RED, FL_WHITE, 0.6);
+  Text welcome("CANDYCRUSH", {250, 250}, 30, pink);
+  Text author("Aminata, Shan Schleusner", {250, 300}, 10, FL_BLACK);
+  welcome.draw();
+  author.draw();
+}
+ 
+ 
+void MainWindow::drawLevelOne() {
+    TextRectangle display_score({90,60}, 120, 70, "Score:");
+    TextRectangle display_objective({230, 60}, 120, 70, "Objective:");
+    TextRectangle display_hits({370, 60}, 120, 70, "Hits remaning:");
+    display_score.draw();
+    display_objective.draw();
+    display_hits.draw();
+    canvas.draw();
+}
